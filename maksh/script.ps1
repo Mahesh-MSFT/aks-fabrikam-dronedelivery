@@ -82,6 +82,27 @@ cat sp.json
 echo $APP_GATEWAY_LISTENER_CERTIFICATE
 echo $AKS_INGRESS_CONTROLLER_CERTIFICATE_BASE64
 
+mkdir -p .github/workflows
+
+cat github-workflow/aks-deploy.yaml | \
+    sed "s#<resource-group-location>#eastus2#g" | \
+    sed "s#<resource-group-name>#rg-shipping-dronedelivery#g" | \
+    sed "s#<geo-redundancy-location>#centralus#g" | \
+    sed "s#<cluster-spoke-vnet-resource-id>#$TARGET_VNET_RESOURCE_ID#g" | \
+    sed "s#<tenant-id-with-user-admin-permissions>#$K8S_RBAC_AAD_PROFILE_TENANTID#g" | \
+    sed "s#<azure-ad-aks-admin-group-object-id>#$K8S_RBAC_AAD_PROFILE_ADMIN_GROUP_OBJECTID#g" | \
+    sed "s#<delivery-id-name>#$DELIVERY_ID_NAME#g" | \
+    sed "s#<delivery-principal-id>#$DELIVERY_ID_PRINCIPAL_ID#g" | \
+    sed "s#<dronescheduler-id-name>#$DRONESCHEDULER_ID_NAME#g" | \
+    sed "s#<dronescheduler-principal-id>#$DRONESCHEDULER_ID_PRINCIPAL_ID#g" | \
+    sed "s#<workflow-id-name>#$WORKFLOW_ID_NAME#g" | \
+    sed "s#<workflow-principal-id>#$WORKFLOW_ID_PRINCIPAL_ID#g" | \
+    sed "s#<ingress-controller-id-name>#$INGRESS_CONTROLLER_ID_NAME#g" | \
+    sed "s#<ingress-controller-principalid>#$INGRESS_CONTROLLER_ID_PRINCIPAL_ID #g" | \
+    sed "s#<acr-resource-group-name>#$ACR_RESOURCE_GROUP#g" | \
+    sed "s#<acr-resource-group-location>#eastus2#g" \
+    > .github/workflows/aks-deploy.yaml
+
 KEYVAULT_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.keyVaultName.value -o tsv)
 
 #####
