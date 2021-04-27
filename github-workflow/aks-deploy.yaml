@@ -114,8 +114,7 @@ jobs:
               workflowPrincipalId=${{ env.WORKFLOW_ID_PRINCIPAL_ID }} \
               ingressControllerIdName=${{ env.INGRESS_CONTROLLER_ID_NAME }} \
               ingressControllerPrincipalId=${{ env.INGRESS_CONTROLLER_ID_PRINCIPAL_ID }} \
-              acrResourceGroupName=${{ env.ACR_RESOURCE_GROUP }} \
-              acrResourceGroupLocation=${{ env.ACR_LOCATION }}
+              acrResourceGroupName=${{ env.ACR_RESOURCE_GROUP }}
 
           echo "::set-output name=name::$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} -n cluster-stamp --query properties.outputs.aksClusterName.value -o tsv)"
         azcliversion: 2.6.0
