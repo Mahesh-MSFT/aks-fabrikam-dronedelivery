@@ -82,3 +82,12 @@ cat sp.json
 echo $APP_GATEWAY_LISTENER_CERTIFICATE
 echo $AKS_INGRESS_CONTROLLER_CERTIFICATE_BASE64
 
+KEYVAULT_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.keyVaultName.value -o tsv)
+
+#####
+
+az deployment group create \
+    --resource-group rg-shipping-dronedelivery \
+    --template-file cluster-stamp.json \
+    -parameters "@azuredeploy.parameters.prod.json"
+

@@ -41,12 +41,16 @@ on:
     paths:
       - 'cluster-stamp.json'
       - '.github/workflows/aks-deploy.yaml'
-    branches: [ main ]
+    branches: 
+      - main
+      - maksh
   pull_request:
     paths:
       - 'cluster-stamp.json'
       - '.github/workflows/aks-deploy.yaml'
-    branches: [ main ]
+    branches:
+      - main
+      - maksh
 
 env:
   RESOURCE_GROUP_LOCATION: 'uksouth'                              # The location where the resource group is going to be created
