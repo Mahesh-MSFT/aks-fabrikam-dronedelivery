@@ -1,5 +1,7 @@
 curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
+export MSYS_NO_PATHCONV=1
+
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -out appgw.crt -keyout appgw.key -subj "/CN=dronedelivery.fabrikam.com/O=Fabrikam Drone Delivery"
 openssl pkcs12 -export -out appgw.pfx -in appgw.crt -inkey appgw.key -passout pass:
 
@@ -66,3 +68,17 @@ until az ad sp show --id ${WORKFLOW_ID_PRINCIPAL_ID} &> /dev/null ; do echo "Wai
 until az ad sp show --id ${INGRESS_CONTROLLER_ID_PRINCIPAL_ID} &> /dev/null ; do echo "Waiting for AAD propagation" && sleep 5; done
 
 TARGET_VNET_RESOURCE_ID=$(az deployment group show -g rg-enterprise-networking-spokes-dronedelivery -n spoke-shipping-dronedelivery --query properties.outputs.clusterVnetResourceId.value -o tsv)
+
+az ad sp create-for-rbac --name "github-workflow-aks-microservices-dronedelivery" --sdk-auth --skip-assignment > sp.json
+
+export APP_ID=$(grep -oP '(?<="clientId": ").*?[^\\](?=",)' sp.json)
+
+until az ad sp show --id ${APP_ID} &> /dev/null ; do echo "Waiting for Azure AD propagation" && sleep 5; done
+
+az role assignment create --assignee $APP_ID --role 'Contributor'
+az role assignment create --assignee $APP_ID --role 'User Access Administrator'
+
+cat sp.json
+echo $APP_GATEWAY_LISTENER_CERTIFICATE
+echo $AKS_INGRESS_CONTROLLER_CERTIFICATE_BASE64
+
