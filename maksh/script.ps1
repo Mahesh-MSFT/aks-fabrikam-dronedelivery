@@ -362,3 +362,48 @@ helm install package-v0.1.0-dev package-v0.1.0.tgz \
 
      az acr update --name $ACR_NAME --set networkRuleSet.defaultAction="Deny"
      az acr update --name $ACR_NAME --public-network-enabled false
+
+     export APPGW_PUBLIC_IP=$(az deployment group show --resource-group rg-enterprise-networking-spokes-dronedelivery -n spoke-shipping-dronedelivery --query properties.outputs.appGwPublicIpAddress.value -o tsv)
+
+
+     curl -X POST "https://dronedelivery.fabrikam.com/api/deliveryrequests" --resolve dronedelivery.fabrikam.com:443:$APPGW_PUBLIC_IP --header 'Content-Type: application/json' --header 'Accept: application/json' -k -d '{
+        "confirmationRequired": "None",
+        "deadline": "",
+        "dropOffLocation": "drop off",
+        "expedited": true,
+        "ownerId": "myowner",
+        "packageInfo": {
+          "packageId": "mypackage",
+          "size": "Small",
+          "tag": "mytag",
+          "weight": 10
+        },
+        "pickupLocation": "my pickup",
+        "pickupTime": "2019-05-08T20:00:00.000Z"
+      }' > deliveryresponse.json
+
+      DELIVERY_ID=$(cat deliveryresponse.json | jq -r .deliveryId)
+
+      curl "https://dronedelivery.fabrikam.com/api/deliveries/$DELIVERY_ID" --resolve dronedelivery.fabrikam.com:443:$APPGW_PUBLIC_IP --header 'Accept: application/json' -k
+
+      curl -X POST "https://dronedelivery.fabrikam.com/api/deliveryrequests" --resolve dronedelivery.fabrikam.com:443:$APPGW_PUBLIC_IP --header 'Content-Type: application/json' --header 'Accept: application/json' -k -d '{
+        "confirmationRequired": "None",
+        "deadline": "",
+        "dropOffLocation": "drop off",
+        "expedited": true,
+        "ownerId": "myowner",
+        "packageInfo": {
+          "packageId": "mypackage",
+          "size": "Small",
+          "tag": "mytag",
+          "weight": 10
+        },
+        "pickupLocation": "my pickup",
+        "pickupTime": "2020-12-08T20:00:00.000Z"
+      }'
+
+      kubectl describe nodes --selector='agentpool=npuser01' | grep backend-dev
+
+      kubectl get hpa -n backend-dev
+
+
