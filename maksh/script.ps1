@@ -103,12 +103,16 @@ cat github-workflow/aks-deploy.yaml | \
     sed "s#<acr-resource-group-location>#eastus2#g" \
     > .github/workflows/aks-deploy.yaml
 
-KEYVAULT_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.keyVaultName.value -o tsv)
+    KEYVAULT_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.keyVaultName.value -o tsv)
 
-#####
+    az keyvault set-policy --certificate-permissions import list get --upn $(az account show --query user.name -o tsv) -n $KEYVAULT_NAME
 
-az deployment group create \
-    --resource-group rg-shipping-dronedelivery \
-    --template-file cluster-stamp.json \
-    -parameters "@azuredeploy.parameters.prod.json"
+    cat k8sic.crt k8sic.key > k8sic.pem
 
+    az keyvault certificate import -f k8sic.pem -n aks-internal-ingress-controller-tls --vault-name $KEYVAULT_NAME
+
+    az keyvault delete-policy --upn $(az account show --query user.name -o tsv) -n $KEYVAULT_NAME
+
+    export AKS_CLUSTER_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.aksClusterName.value -o tsv)
+    az aks get-credentials -g rg-shipping-dronedelivery -n $AKS_CLUSTER_NAME
+    kubectl get constrainttemplate
