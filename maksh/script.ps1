@@ -218,3 +218,38 @@ helm install ingress-azure-dev application-gateway-kubernetes-ingress/ingress-az
      kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=delivery-v0.1.0-dev --timeout=90s
 
      az acr build -r $ACR_NAME -t $ACR_SERVER/ingestion:0.1.0 ./src/shipping/ingestion/.
+
+    export INGESTION_QUEUE_NAMESPACE=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.ingestionQueueNamespace.value -o tsv)
+    export INGESTION_QUEUE_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.ingestionQueueName.value -o tsv)
+    export INGESTION_ACCESS_KEY_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.ingestionServiceAccessKeyName.value -o tsv)
+    export INGESTION_ACCESS_KEY_VALUE=$(az servicebus namespace authorization-rule keys list --resource-group rg-shipping-dronedelivery --namespace-name $INGESTION_QUEUE_NAMESPACE --name $INGESTION_ACCESS_KEY_NAME --query primaryKey -o tsv)
+
+    helm package ./charts/ingestion/ -u
+    helm install ingestion-v0.1.0-dev ingestion-v0.1.0.tgz \
+    --set image.tag=0.1.0 \
+    --set image.repository=ingestion \
+    --set dockerregistry=$ACR_SERVER \
+    --set ingress.hosts[0].name=dronedelivery.fabrikam.com \
+    --set ingress.hosts[0].serviceName=ingestion \
+    --set networkPolicy.egress.external.enabled=true \
+    --set networkPolicy.egress.external.clusterSubnetPrefix=$CLUSTER_SUBNET_PREFIX \
+    --set networkPolicy.ingress.externalSubnet.enabled=true \
+    --set networkPolicy.ingress.externalSubnet.subnetPrefix=$GATEWAY_SUBNET_PREFIX \
+    --set secrets.appinsights.ikey=${AI_IKEY} \
+    --set secrets.queue.keyname=IngestionServiceAccessKey \
+    --set secrets.queue.keyvalue=${INGESTION_ACCESS_KEY_VALUE} \
+    --set secrets.queue.name=${INGESTION_QUEUE_NAME} \
+    --set secrets.queue.namespace=${INGESTION_QUEUE_NAMESPACE} \
+    --set reason="Initial deployment" \
+    --set envs.dev=true \
+    --namespace backend-dev
+
+    kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=ingestion-v0.1.0-dev --timeout=180s
+
+    az acr build -r $ACR_NAME -t $ACR_SERVER/workflow:0.1.0 ./src/shipping/workflow/.
+
+    export WORKFLOW_ID_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.workflowIdName.value -o tsv)
+    export WORKFLOW_PRINCIPAL_RESOURCE_ID=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.workflowPrincipalResourceId.value -o tsv)
+    export WORKFLOW_PRINCIPAL_CLIENT_ID=$(az identity show -g rg-shipping-dronedelivery -n $WORKFLOW_ID_NAME --query clientId -o tsv)
+    export WORKFLOW_KEYVAULT_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.workflowKeyVaultName.value -o tsv)
+    
