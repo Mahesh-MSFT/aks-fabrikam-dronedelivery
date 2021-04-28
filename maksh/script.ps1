@@ -1,4 +1,6 @@
-curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+!/usr/bin/env | curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 |  bash
+OR
+choco install kubernetes-helm
 
 export MSYS_NO_PATHCONV=1
 
@@ -116,3 +118,57 @@ cat github-workflow/aks-deploy.yaml | \
     export AKS_CLUSTER_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.aksClusterName.value -o tsv)
     az aks get-credentials -g rg-shipping-dronedelivery -n $AKS_CLUSTER_NAME
     kubectl get constrainttemplate
+
+    kubectl get ns backend-dev -w
+
+    kubectl get resourcequota -n backend-dev
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1alpha1
+kind: SecretProviderClass
+metadata:
+  name: aks-internal-ingress-controller-tls-secret-csi-akv
+  namespace: backend-dev
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "true"
+    keyvaultName: "${KEYVAULT_NAME}"
+    objects:  |
+      array:
+        - |
+          objectName: aks-internal-ingress-controller-tls
+          objectAlias: tls.crt
+          objectType: cert
+        - |
+          objectName: aks-internal-ingress-controller-tls
+          objectAlias: tls.key
+          objectType: secret
+    tenantId: "${TENANT_ID}"
+EOF
+
+INGRESS_CONTROLLER_PRINCIPAL_RESOURCE_ID=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.appGatewayControllerPrincipalResourceId.value -o tsv)
+INGRESS_CONTROLLER_PRINCIPAL_CLIENT_ID=$(az identity show --ids $INGRESS_CONTROLLER_PRINCIPAL_RESOURCE_ID --query clientId -o tsv)
+
+APPGW_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.agwName.value -o tsv)
+
+helm repo add application-gateway-kubernetes-ingress https://appgwingress.blob.core.windows.net/ingress-azure-helm-package/
+helm repo update
+
+helm install ingress-azure-dev application-gateway-kubernetes-ingress/ingress-azure \
+  --namespace kube-system \
+  --set appgw.name=$APPGW_NAME \
+  --set appgw.resourceGroup=rg-shipping-dronedelivery \
+  --set appgw.subscriptionId=$(az account show --query id --output tsv) \
+  --set appgw.shared=false \
+  --set kubernetes.watchNamespace=backend-dev \
+  --set armAuth.type=aadPodIdentity \
+  --set armAuth.identityResourceID=$INGRESS_CONTROLLER_PRINCIPAL_RESOURCE_ID \
+  --set armAuth.identityClientID=$INGRESS_CONTROLLER_PRINCIPAL_CLIENT_ID \
+  --set rbac.enabled=true \
+  --set verbosityLevel=3 \
+  --set aksClusterConfiguration.apiServerAddress=$(az aks show -n $AKS_CLUSTER_NAME -g rg-shipping-dronedelivery --query fqdn -o tsv) \
+  --set appgw.usePrivateIP=false \
+  --version 1.3.0
+
+
