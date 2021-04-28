@@ -186,3 +186,35 @@ helm install ingress-azure-dev application-gateway-kubernetes-ingress/ingress-az
   az acr update --name $ACR_NAME --set networkRuleSet.defaultAction="Allow"
 
   az acr build -r $ACR_NAME -t $ACR_SERVER/delivery:0.1.0 ./src/shipping/delivery/.
+
+  DELIVERY_ID_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.deliveryIdName.value -o tsv)
+  DELIVERY_KEYVAULT_URI=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.deliveryKeyVaultUri.value -o tsv)
+  DELIVERY_COSMOSDB_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.deliveryCosmosDbName.value -o tsv)
+  DELIVERY_DATABASE_NAME="${DELIVERY_COSMOSDB_NAME}-db"
+  DELIVERY_COLLECTION_NAME="${DELIVERY_COSMOSDB_NAME}-col"
+  DELIVERY_PRINCIPAL_RESOURCE_ID=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.deliveryPrincipalResourceId.value -o tsv)
+  DELIVERY_PRINCIPAL_CLIENT_ID=$(az identity show -g rg-shipping-dronedelivery -n $DELIVERY_ID_NAME --query clientId -o tsv)
+
+  helm package ./charts/delivery/ -u
+  helm install delivery-v0.1.0-dev delivery-v0.1.0.tgz \
+     --set image.tag=0.1.0 \
+     --set image.repository=delivery \
+     --set dockerregistry=$ACR_SERVER \
+     --set ingress.hosts[0].name=dronedelivery.fabrikam.com \
+     --set ingress.hosts[0].serviceName=delivery \
+     --set networkPolicy.egress.external.enabled=true \
+     --set networkPolicy.egress.external.clusterSubnetPrefix=$CLUSTER_SUBNET_PREFIX \
+     --set networkPolicy.ingress.externalSubnet.enabled=true \
+     --set networkPolicy.ingress.externalSubnet.subnetPrefix=$GATEWAY_SUBNET_PREFIX \
+     --set identity.clientid=$DELIVERY_PRINCIPAL_CLIENT_ID \
+     --set identity.resourceid=$DELIVERY_PRINCIPAL_RESOURCE_ID \
+     --set cosmosdb.id=$DELIVERY_DATABASE_NAME \
+     --set cosmosdb.collectionid=$DELIVERY_COLLECTION_NAME \
+     --set keyvault.uri=$DELIVERY_KEYVAULT_URI \
+     --set reason="Initial deployment" \
+     --set envs.dev=true \
+     --namespace backend-dev
+
+     kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=delivery-v0.1.0-dev --timeout=90s
+
+     az acr build -r $ACR_NAME -t $ACR_SERVER/ingestion:0.1.0 ./src/shipping/ingestion/.
