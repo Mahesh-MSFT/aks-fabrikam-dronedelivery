@@ -319,4 +319,46 @@ export DRONESCHEDULER_ID_NAME=$(az deployment group show -g rg-shipping-dronedel
 export DRONESCHEDULER_PRINCIPAL_CLIENT_ID=$(az identity show -g rg-shipping-dronedelivery -n $DRONESCHEDULER_ID_NAME --query clientId -o tsv)
 export DRONESCHEDULER_KEYVAULT_URI=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.droneSchedulerKeyVaultUri.value -o tsv)
 
+helm package ./charts/dronescheduler/ -u && \
+helm install dronescheduler-v0.1.0-dev dronescheduler-v0.1.0.tgz \
+     --set image.tag=0.1.0 \
+     --set image.repository=dronescheduler \
+     --set dockerregistry=$ACR_SERVER \
+     --set identity.clientid=$DRONESCHEDULER_PRINCIPAL_CLIENT_ID \
+     --set identity.resourceid=$DRONESCHEDULER_PRINCIPAL_RESOURCE_ID \
+     --set networkPolicy.egress.external.enabled=true \
+     --set networkPolicy.egress.external.clusterSubnetPrefix=$CLUSTER_SUBNET_PREFIX \
+     --set keyvault.uri=$DRONESCHEDULER_KEYVAULT_URI \
+     --set cosmosdb.id=$DRONESCHEDULER_DATABASE_NAME \
+     --set cosmosdb.collectionid=$DRONESCHEDULER_COLLECTION_NAME \
+     --set reason="Initial deployment" \
+     --set envs.dev=true \
+     --namespace backend-dev
 
+kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=dronescheduler-v0.1.0-dev --timeout=90s
+
+az acr build -r $ACR_NAME -t $ACR_SERVER/package:0.1.0 ./src/shipping/package/.
+
+export PACKAGE_DATABASE_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.packageMongoDbName.value -o tsv)
+export PACKAGE_CONNECTION=$(az cosmosdb keys list --type connection-strings --name $PACKAGE_DATABASE_NAME --resource-group rg-shipping-dronedelivery --query "connectionStrings[0].connectionString" -o tsv | sed 's/==/%3D%3D/g')
+export PACKAGE_COLLECTION_NAME=packages
+export PACKAGE_INGRESS_TLS_SECRET_NAME=package-ingress-tls
+
+helm package ./charts/package/ -u && \
+helm install package-v0.1.0-dev package-v0.1.0.tgz \
+     --set image.tag=0.1.0 \
+     --set image.repository=package \
+     --set networkPolicy.egress.external.enabled=true \
+     --set networkPolicy.egress.external.clusterSubnetPrefix=$CLUSTER_SUBNET_PREFIX \
+     --set secrets.appinsights.ikey=$AI_IKEY \
+     --set secrets.mongo.pwd=$PACKAGE_CONNECTION \
+     --set cosmosDb.collectionName=$PACKAGE_COLLECTION_NAME \
+     --set dockerregistry=$ACR_SERVER \
+     --set reason="Initial deployment" \
+     --set envs.dev=true \
+     --namespace backend-dev
+
+     kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=package-v0.1.0-dev --timeout=90s
+
+     az acr update --name $ACR_NAME --set networkRuleSet.defaultAction="Deny"
+     az acr update --name $ACR_NAME --public-network-enabled false
