@@ -171,4 +171,18 @@ helm install ingress-azure-dev application-gateway-kubernetes-ingress/ingress-az
   --set appgw.usePrivateIP=false \
   --version 1.3.0
 
+  kubectl wait --namespace kube-system --for=condition=ready pod --selector=release=ingress-azure-dev --timeout=90s
 
+  ACR_NAME=$(az deployment group show --resource-group rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.acrName.value -o tsv)
+  ACR_SERVER=$(az acr show -n $ACR_NAME --query loginServer -o tsv)
+
+  export CLUSTER_SUBNET_PREFIX=$(az deployment group show -g rg-enterprise-networking-spokes-dronedelivery -n spoke-shipping-dronedelivery --query properties.outputs.clusterSubnetPrefix.value -o tsv)
+  export GATEWAY_SUBNET_PREFIX=$(az deployment group show -g rg-enterprise-networking-spokes-dronedelivery -n spoke-shipping-dronedelivery --query properties.outputs.gatewaySubnetPrefix.value -o tsv)
+
+  export AI_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.appInsightsName.value -o tsv)
+  export AI_IKEY=$(az resource show -g rg-shipping-dronedelivery -n $AI_NAME --resource-type "Microsoft.Insights/components" --query properties.InstrumentationKey -o tsv)
+
+  az acr update --name $ACR_NAME --public-network-enabled true
+  az acr update --name $ACR_NAME --set networkRuleSet.defaultAction="Allow"
+
+  az acr build -r $ACR_NAME -t $ACR_SERVER/delivery:0.1.0 ./src/shipping/delivery/.
