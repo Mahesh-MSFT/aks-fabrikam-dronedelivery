@@ -253,3 +253,70 @@ helm install ingress-azure-dev application-gateway-kubernetes-ingress/ingress-az
     export WORKFLOW_PRINCIPAL_CLIENT_ID=$(az identity show -g rg-shipping-dronedelivery -n $WORKFLOW_ID_NAME --query clientId -o tsv)
     export WORKFLOW_KEYVAULT_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.workflowKeyVaultName.value -o tsv)
     
+    cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1alpha1
+kind: SecretProviderClass
+metadata:
+  name: workflow-secrets-csi-akv
+  namespace: backend-dev
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "true"
+    keyvaultName: "${WORKFLOW_KEYVAULT_NAME}"
+    objects:  |
+      array:
+        - |
+          objectName: QueueName
+          objectAlias: QueueName
+          objectType: secret
+        - |
+          objectName: QueueEndpoint
+          objectAlias: QueueEndpoint
+          objectType: secret
+        - |
+          objectName: QueueAccessPolicyName
+          objectAlias: QueueAccessPolicyName
+          objectType: secret
+        - |
+          objectName: QueueAccessPolicyKey
+          objectAlias: QueueAccessPolicyKey
+          objectType: secret
+        - |
+          objectName: ApplicationInsights-InstrumentationKey
+          objectAlias: ApplicationInsights-InstrumentationKey
+          objectType: secret
+    tenantId: "${TENANT_ID}"
+EOF
+
+helm package ./charts/workflow/ -u && \
+helm install workflow-v0.1.0-dev workflow-v0.1.0.tgz \
+     --set image.tag=0.1.0 \
+     --set image.repository=workflow \
+     --set dockerregistry=$ACR_SERVER \
+     --set identity.clientid=$WORKFLOW_PRINCIPAL_CLIENT_ID \
+     --set identity.resourceid=$WORKFLOW_PRINCIPAL_RESOURCE_ID \
+     --set networkPolicy.egress.external.enabled=true \
+     --set networkPolicy.egress.external.clusterSubnetPrefix=$CLUSTER_SUBNET_PREFIX \
+     --set keyvault.name=$WORKFLOW_KEYVAULT_NAME \
+     --set keyvault.resourcegroup=rg-shipping-dronedelivery \
+     --set keyvault.subscriptionid=$SUBSCRIPTION_ID \
+     --set keyvault.tenantid=$TENANT_ID \
+     --set reason="Initial deployment" \
+     --set envs.dev=true \
+     --namespace backend-dev
+
+kubectl wait --namespace backend-dev --for=condition=ready pod --selector=app.kubernetes.io/instance=workflow-v0.1.0-dev --timeout=90s
+
+az acr build -r $ACR_NAME -f ./src/shipping/dronescheduler/Dockerfile -t $ACR_SERVER/dronescheduler:0.1.0 ./src/shipping/.
+
+export DRONESCHEDULER_KEYVAULT_URI=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.droneSchedulerKeyVaultUri.value -o tsv)
+export DRONESCHEDULER_COSMOSDB_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.droneSchedulerCosmosDbName.value -o tsv)
+export DRONESCHEDULER_DATABASE_NAME="invoicing"
+export DRONESCHEDULER_COLLECTION_NAME="utilization"
+export DRONESCHEDULER_PRINCIPAL_RESOURCE_ID=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.droneSchedulerPrincipalResourceId.value -o tsv)
+export DRONESCHEDULER_ID_NAME=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp-prereqs-identities --query properties.outputs.droneSchedulerIdName.value -o tsv)
+export DRONESCHEDULER_PRINCIPAL_CLIENT_ID=$(az identity show -g rg-shipping-dronedelivery -n $DRONESCHEDULER_ID_NAME --query clientId -o tsv)
+export DRONESCHEDULER_KEYVAULT_URI=$(az deployment group show -g rg-shipping-dronedelivery -n cluster-stamp --query properties.outputs.droneSchedulerKeyVaultUri.value -o tsv)
+
+
