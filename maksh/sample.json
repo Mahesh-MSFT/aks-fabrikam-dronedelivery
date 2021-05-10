@@ -1,0 +1,153 @@
+{
+    "kind": "Pod",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "delivery-v010-dev-6dd6ff6db5-pd7hd",
+        
+    "spec": {
+        "containers": [
+            {
+                "name": "fabrikam-delivery",
+                "image": "acrakspr3wdbaovo6aa.azurecr.io/delivery:0.1.0",
+                "ports": [
+                    {
+                        "name": "service",
+                        "containerPort": 8080,
+                        "protocol": "TCP"
+                    }
+                ],
+                "resources": {
+                    "limits": {
+                        "cpu": "130m",
+                        "memory": "500Mi"
+                    },
+                    "requests": {
+                        "cpu": "80m",
+                        "memory": "350Mi"
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "name": "default-token-zmv59",
+                        "readOnly": true,
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                    }
+                ],
+                "livenessProbe": {
+                    "httpGet": {
+                        "path": "/healthz",
+                        "port": 8080,
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 50,
+                    "timeoutSeconds": 1,
+                    "periodSeconds": 15,
+                    "successThreshold": 1,
+                    "failureThreshold": 3
+                },
+                "readinessProbe": {
+                    "httpGet": {
+                        "path": "/healthz",
+                        "port": 8080,
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 40,
+                    "timeoutSeconds": 2,
+                    "periodSeconds": 15,
+                    "successThreshold": 1,
+                    "failureThreshold": 5
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "imagePullPolicy": "Always"
+            }
+        ],
+        "restartPolicy": "Always",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "nodeName": "aks-npuser01-38418848-vmss000001",
+        "securityContext": {
+            "fsGroup": 1
+        },
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+            {
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            },
+            {
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "effect": "NoExecute",
+                "tolerationSeconds": 300
+            },
+            {
+                "key": "node.kubernetes.io/memory-pressure",
+                "operator": "Exists",
+                "effect": "NoSchedule"
+            }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+    },
+    "status": {
+        "phase": "Running",
+        "conditions": [
+            {
+                "type": "Initialized",
+                "status": "True",
+                "lastProbeTime": null,
+                "lastTransitionTime": "2021-04-28T12:05:38Z"
+            },
+            {
+                "type": "Ready",
+                "status": "True",
+                "lastProbeTime": null,
+                "lastTransitionTime": "2021-04-28T12:06:40Z"
+            },
+            {
+                "type": "ContainersReady",
+                "status": "True",
+                "lastProbeTime": null,
+                "lastTransitionTime": "2021-04-28T12:06:40Z"
+            },
+            {
+                "type": "PodScheduled",
+                "status": "True",
+                "lastProbeTime": null,
+                "lastTransitionTime": "2021-04-28T12:05:38Z"
+            }
+        ],
+        "hostIP": "10.240.0.36",
+        "podIP": "10.240.0.49",
+        "podIPs": [
+            {
+                "ip": "10.240.0.49"
+            }
+        ],
+        "startTime": "2021-04-28T12:05:38Z",
+        "containerStatuses": [
+            {
+                "name": "fabrikam-delivery",
+                "state": {
+                    "running": {
+                        "startedAt": "2021-04-28T12:05:46Z"
+                    }
+                },
+                "lastState": {},
+                "ready": true,
+                "restartCount": 0,
+                "image": "acrakspr3wdbaovo6aa.azurecr.io/delivery:0.1.0",
+                "imageID": "acrakspr3wdbaovo6aa.azurecr.io/delivery@sha256:13169315ef36e9f00277bbe43965134cbbcd5b15167e256718c10ed4d70e437b",
+                "containerID": "containerd://d62e1543481eb512ad24416422cc73f431968f627c6d24807fed8c6209f093f4",
+                "started": true
+            }
+        ],
+        "qosClass": "Burstable"
+    }
+}

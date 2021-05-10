@@ -1,0 +1,27 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1beta1
+metadata:
+  name: delivery-v0.1.0-dev-ingress
+  namespace: backend-dev
+spec:
+  tls:
+    - hosts:
+        - dronedelivery.fabrikam.com
+  rules:
+    - host: dronedelivery.fabrikam.com
+      http:
+        paths:
+          - path: /v0.1.0/api/deliveries*
+            pathType: Prefix
+            backend:
+              serviceName: delivery-v010
+              servicePort: 80
+          - path: /api/deliveries*
+            pathType: Prefix
+            backend:
+              serviceName: delivery
+              servicePort: 80
+status:
+  loadBalancer:
+    ingress:
+      - ip: 51.143.231.101
